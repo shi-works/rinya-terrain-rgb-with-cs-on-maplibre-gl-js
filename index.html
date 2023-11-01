@@ -1,0 +1,233 @@
+<html>
+
+<head>
+    <title>林野庁 標高タイル（Terrain-RGB）+CS立体図</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src='https://unpkg.com/maplibre-gl@3.4.1/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.4.1/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/pmtiles@2.10.0/dist/index.js"></script>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .map-overlay {
+            font: bold 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            position: absolute;
+            width: 170px;
+            bottom: 20px;
+            left: 0;
+            padding: 10px;
+        }
+
+        .map-overlay .map-overlay-inner {
+            background-color: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .map-overlay label {
+            display: block;
+            margin: 0 0 0px;
+            font-size: 12px;
+            top: 100px;
+            left: 10px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .map-overlay input {
+            background-color: transparent;
+            display: inline-block;
+            width: 100%;
+            position: relative;
+            margin: 0;
+            cursor: ew-resize;
+        }
+
+        #select-tiles {
+            padding: 3px 4px;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+            color: black;
+            background: white;
+            background: rgba(255, 255, 255, 1.0);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            width: fit-content;
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id="select-tiles">
+        <label><b>タイルの種類</b></label><br>
+        <select id="tiles" onchange="SelectTiles()">
+            <option value="kochi">高知県標高タイル(0.5mDEM)+CS立体図</option>
+            <option value="tochigi">栃木県標高タイル(0.5mDEM)+CS立体図</option>
+            <option value="hyogo">兵庫県標高タイル(0.5mDEM)+CS立体図</option>
+        </select>
+    </div>
+    <div class="map-overlay top">
+        <div class="map-overlay-inner">
+            <label>CS立体図 不透明度: <span id="cs-slider-opacity-value">100%</span></label>
+            <input id="cs-slider-opacity" type="range" min="0" max="100" step="1" value="100">
+        </div>
+    </div>
+    <script type="text/javascript">
+        // protocolの設定
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'std.json',
+            // style: 'https://tile2.openstreetmap.jp/styles/osm-bright/style.json',
+            zoom: 8.78,
+            minZoom: 1,
+            maxZoom: 23,
+            maxPitch: 85,
+            pitch: 0,
+            bearing: 0,
+            center: [133.4565, 33.3298],
+            hash: true,
+            attributionControl: false
+        });
+
+        // ズーム・回転
+        map.addControl(new maplibregl.NavigationControl());
+
+        // フルスクリーンモードのオンオフ
+        map.addControl(new maplibregl.FullscreenControl());
+
+        // 現在位置表示
+        map.addControl(new maplibregl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: false
+            },
+            fitBoundsOptions: { maxZoom: 18 },
+            trackUserLocation: true,
+            showUserLocation: true
+        }));
+
+        // スケール表示
+        map.addControl(new maplibregl.ScaleControl({
+            maxWidth: 200,
+            unit: 'metric'
+        }));
+
+        // Attributionを折りたたみ表示
+        map.addControl(new maplibregl.AttributionControl({
+            compact: true,
+            customAttribution: '（<a href="https://twitter.com/shi__works" target="_blank">Twitter</a> | <a href="" target="_blank">Github</a>） '
+        }));
+
+        /*
+        // 3D地形コントロール
+        map.addControl(
+            new maplibregl.TerrainControl({
+                source: 'kochi-dem',
+                exaggeration: 1 // 標高を強調する倍率
+            })
+        );
+        */
+
+        map.on('load', () => {
+            // スライダーでCS立体図の不透明度を制御
+            const cs_sliderOpactiy = document.getElementById('cs-slider-opacity');
+            const cs_sliderOpactiyValue = document.getElementById('cs-slider-opacity-value');
+
+            cs_sliderOpactiy.addEventListener('input', (e) => {
+                map.setPaintProperty(
+                    'kochi-cs',
+                    'raster-opacity',
+                    parseInt(e.target.value, 10) / 100
+                );
+                map.setPaintProperty(
+                    'tochigi-cs',
+                    'raster-opacity',
+                    parseInt(e.target.value, 10) / 100
+                );
+                map.setPaintProperty(
+                    'hyogo-cs',
+                    'raster-opacity',
+                    parseInt(e.target.value, 10) / 100
+                );
+                cs_sliderOpactiyValue.textContent = e.target.value + '%';
+            });
+
+            map.showTileBoundaries = false;
+
+        })
+
+        // マップの中心座標を設定
+        function getMapCenter(CenterText) {
+            const CenterTable = {
+                // キー：都道府県、値：緯度、経度
+                'kochi': [33.3298, 133.4565, 8.78],
+                'tochigi': [36.7202, 139.9177, 9],
+                'hyogo': [34.956, 134.846, 8.44],
+            };
+            return CenterTable[CenterText];
+        }
+
+        // タイル切り替え制御
+        function SelectTiles() {
+            // valueを取得
+            var PrefNameRoma = document.getElementById('tiles').value;
+
+            // 都道府県取得
+            const getPrefName = (prefNameRoma) => {
+                const prefMap = {
+                    kochi: '高知県',
+                    tochigi: '栃木県',
+                    hyogo: '兵庫県',
+                };
+                return prefMap[prefNameRoma] || '';
+            };
+
+            // 既存の標高タイルを削除
+            map.setTerrain(null);
+
+            // 新たに標高タイルをセット
+            map.setTerrain({ 'source': PrefNameRoma + '-dem', 'exaggeration': 1 });
+
+            // 一旦、CS立体図を非表示
+            if (map.getLayer('hyogo-cs')) { map.setLayoutProperty('hyogo-cs', 'visibility', 'none'); }
+            if (map.getLayer('tochigi-cs')) { map.setLayoutProperty('tochigi-cs', 'visibility', 'none'); }
+            if (map.getLayer('kochi-cs')) { map.setLayoutProperty('kochi-cs', 'visibility', 'none'); }
+
+            // CS立体図レイヤを表示
+            map.setLayoutProperty(PrefNameRoma + '-cs', 'visibility', 'visible');
+
+            // 市区町村名を引数として関数を呼び出し、返された値を変数に代入
+            const locationInfo = getMapCenter(PrefNameRoma);
+
+            // 値を緯度、経度にそれぞれ代入
+            const latitude = locationInfo[0];
+            const longitude = locationInfo[1];
+            const ZoomLevel = locationInfo[2];
+
+            // マップの中心座標へ遷移
+            map.flyTo({
+                center: [longitude, latitude],
+                zoom: ZoomLevel
+            });
+
+        }
+    </script>
+</body>
+
+</html>
